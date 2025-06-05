@@ -1,11 +1,11 @@
 // Configuration
 const totalClicksNeeded = 10;
 let clickCount = 0;
-let currentQuoteIndex = 0;
 
 // Load blocked sites and quotes
 let blockedSites = [];
 let quotes = [];
+let currentQuoteIndex = 0; // Tracks the current quote index
 
 // Load blocked sites and quotes from JSON files
 console.log('Starting to load data...');
@@ -41,6 +41,9 @@ Promise.all([
   // Extract the blockedSites array from the nested structure
   blockedSites = sitesData.blockedSites || [];
   quotes = quoteList.quotes || quoteList || [];
+  currentQuoteIndex = 0; // Reset to show first quote
+  console.log('Quotes loaded:', quotes);
+  console.log('Initial quote:', quotes[currentQuoteIndex]);
   
   console.log('Successfully loaded:');
   console.log('- Blocked sites:', blockedSites);
@@ -77,6 +80,10 @@ function checkIfBlocked() {
 }
 
 function showMotivationOverlay() {
+  console.log('Showing overlay, current index:', currentQuoteIndex);
+  // Reset index to 0 when showing overlay
+  currentQuoteIndex = 0;
+  
   // Create overlay
   const overlay = document.createElement('div');
   overlay.className = 'motivation-overlay';
@@ -84,7 +91,9 @@ function showMotivationOverlay() {
   // Create quote element
   const quoteElement = document.createElement('div');
   quoteElement.className = 'quote';
-  quoteElement.textContent = getRandomQuote();
+  const quote = getRandomQuote();
+  console.log('Displaying quote:', quote);
+  quoteElement.textContent = quote;
 
   // Create button
   const button = document.createElement('button');
@@ -102,17 +111,27 @@ function showMotivationOverlay() {
   positionButtonRandomly(button);
 
   // Add click handler
-  button.addEventListener('click', () => {
+  button.addEventListener('click', (e) => {
+    // Prevent any default button behavior
+    e.preventDefault();
+    e.stopPropagation();
+    
     clickCount++;
+    console.log(`Button clicked ${clickCount} times`);
 
     if (clickCount >= totalClicksNeeded) {
       // Remove overlay and allow access
-      document.body.removeChild(overlay);
+      if (document.body.contains(overlay)) {
+        document.body.removeChild(overlay);
+      }
       // Store that we've completed this session (resets on page reload)
       sessionStorage.setItem('motivationCompleted', 'true');
+      console.log('Motivation completed, session storage updated');
     } else {
       // Change quote and move button
-      quoteElement.textContent = getRandomQuote();
+      const newQuote = getRandomQuote();
+      console.log('New quote:', newQuote);
+      quoteElement.textContent = newQuote;
       positionButtonRandomly(button);
     }
   });
@@ -121,10 +140,9 @@ function showMotivationOverlay() {
 function getRandomQuote() {
   if (!quotes.length) return 'Stay focused and keep going!';
   const quote = quotes[currentQuoteIndex];
-  // Only move to next quote after returning the current one
-  setTimeout(() => {
-    currentQuoteIndex = (currentQuoteIndex + 1) % quotes.length;
-  }, 0);
+  console.log('Current index:', currentQuoteIndex, 'Quote:', quote);
+  // Move to next quote for next time
+  currentQuoteIndex = (currentQuoteIndex + 1) % quotes.length;
   return quote;
 }
 
@@ -147,12 +165,29 @@ function wwwPrefix(url) {
 
 // Check if we've already completed the motivation for this session
 if (sessionStorage.getItem('motivationCompleted') !== 'true') {
-  // Check if document is already loaded
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    // If already loaded or in the process of loading
-    setTimeout(checkIfBlocked, 1);
+  const initExtension = () => {
+    // Check if document is fully loaded
+    if (document.readyState === 'complete') {
+      checkIfBlocked();
+    } else {
+      // If not loaded yet, wait for the load event
+      window.addEventListener('load', function() {
+        // Small delay to ensure all resources are loaded
+        setTimeout(checkIfBlocked, 100);
+      }, { once: true });
+    }
+  };
+
+  // Remove any existing listeners to prevent duplicates
+  window.removeEventListener('load', initExtension);
+  document.removeEventListener('DOMContentLoaded', initExtension);
+
+  // Start initialization
+  if (document.readyState === 'loading') {
+    // If document is still loading, wait for it to finish
+    document.addEventListener('DOMContentLoaded', initExtension, { once: true });
   } else {
-    // If not loaded yet, wait for load event
-    window.addEventListener('load', checkIfBlocked);
+    // If document is already loaded or in interactive state
+    initExtension();
   }
 }
